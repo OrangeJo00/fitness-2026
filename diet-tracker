@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>Joyce 减脂管理</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            -webkit-font-smoothing: antialiased;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .card {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            transition: transform 0.2s;
+        }
+        .btn-primary:active {
+            transform: scale(0.95);
+        }
+        #cameraInput {
+            display: none;
+        }
+        .loading {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 20px 40px;
+            border-radius: 12px;
+            z-index: 1000;
+        }
+    </style>
+</head>
+<body class="p-4">
+    <div class="max-w-md mx-auto space-y-4">
+        <!-- 今日统计 -->
+        <div class="card p-6">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">📊 今日统计</h2>
+            <div class="text-center mb-4">
+                <div class="text-4xl font-bold text-purple-600" id="caloriesDisplay">-- / --</div>
+                <div class="text-sm text-gray-500 mt-1" id="caloriesBreakdown">加载中...</div>
+            </div>
+            <div class="grid grid-cols-3 gap-4 text-center">
+                <div>
+                    <div class="text-2xl font-bold text-blue-600" id="proteinDisplay">--</div>
+                    <div class="text-xs text-gray-500">蛋白质(g)</div>
+                </div>
+                <div>
+                    <div class="text-2xl font-bold text-green-600" id="carbsDisplay">--</div>
+                    <div class="text-xs text-gray-500">碳水(g)</div>
+                </div>
+                <div>
+                    <div class="text-2xl font-bold text-yellow-600" id="fatDisplay">--</div>
+                    <div class="text-xs text-gray-500">脂肪(g)</div>
+                </div>
+            </div>
+            <div id="workoutDisplay" class="mt-4 pt-4 border-t border-gray-200"></div>
+        </div>
+
+        <!-- 记录饮食 -->
+        <div class="card p-6">
+            <h2 class="text-xl font-bold text-gray-800 mb-4">🍽️ 记录饮食</h2>
+            <textarea 
+                id="foodInput" 
+                class="w-full p-3 border border-gray-300 rounded-lg mb-3 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                rows="3"
+                placeholder="吃了什么？&#10;例如：一碗牛肉面 + 一个鸡蛋"></textarea>
+            <div class="flex gap-2">
+                <button onclick="addDiet()" class="flex-1 btn-primary text-white py-3 rounded-lg font-semibold">
+                    记录饮食
+                </button>
+                <button onclick="document.getElementById('cameraInput').click()" class="btn-primary text-white px-6 py-3 rounded-lg font-semibold">
+                    📷
+                </button>
+            </div>
+            <input type="file" id="cameraInput" accept="image/*" capture="environment" onchange="handlePhoto(event)">
+        </div>
+
+        <!-- 记录体重 -->
+        <div class="card p-6">
+            <h2 class="text-xl font-bold text-gray-800 mb-4">⚖️ 记录体重</h2>
+            <div class="flex gap-2">
+                <input 
+                    type="number" 
+                    id="weightInput" 
+                    class="flex-1 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    placeholder="78.5"
+                    step="0.1">
+                <button onclick="addWeight()" class="btn-primary text-white px-8 py-3 rounded-lg font-semibold">
+                    保存
+                </button>
+            </div>
+        </div>
+
+        <!-- 手动同步训记 -->
+        <div class="card p-6">
+            <button onclick="syncXunji()" class="w-full bg-green-500 text-white py-3 rounded-lg font-semibold">
+                🔄 立即同步训记
+            </button>
+            <div class="text-xs text-gray-500 text-center mt-2">每天 21:00 自动同步</div>
+        </div>
+    </div>
+
+    <!-- Loading 提示 -->
+    <div class="loading" id="loading">处理中...</div>
+
+    <script>
+        let API_URL = 'https://script.google.com/macros/s/AKfycbz2YVVeBgMzFK86TkfZ7R1ezEmfg_FFvfjyI-Dw-1NNJLaO3Rm1F0T62_teU0B0j8mm/exec';
+        let GEMINI_API_KEY = '';
+        const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent';
+
+        let foodLibrary = [];
+
+        // 启动时动态加载配置
+        async function loadConfig() {
+            try {
+                const response = await fetch(`${API_URL}?action=getConfig`);
+                const config = await response.json();
+                GEMINI_API_KEY = config.geminiApiKey;
+            } catch (error) {
+                console.error('加载配置失败:', error);
+                alert('配置加载失败，请检查网络连接');
+            }
+        }
+
+        // 页面加载时获取数据
+        window.onload = async function() {
+            await loadConfig();
+            await loadTodaySummary();
+            await loadFoodLibrary();
+        };
+
+        // 显示加载提示
+        function showLoading(show = true) {
+            document.getElementById('loading').style.display = show ? 'block' : 'none';
+        }
+
+        // 加载今日统计
+        async function loadTodaySummary() {
+            try {
+                const response = await fetch(`${API_URL}?action=getTodaySummary`);
+                const data = await response.json();
+                
+                document.getElementById('caloriesDisplay').textContent = 
+                    `${data.consumed.calories} / ${data.totalAllowed}`;
+                document.getElementById('caloriesBreakdown').textContent = 
+                    `（基础 ${data.baseCalories} + 运动 ${data.workoutCalories}）`;
+                
+                document.getElementById('proteinDisplay').textContent = data.consumed.protein;
+                document.getElementById('carbsDisplay').textContent = data.consumed.carbs;
+                document.getElementById('fatDisplay').textContent = data.consumed.fat;
+                
+                // 显示运动记录
+                const workoutDiv = document.getElementById('workoutDisplay');
+                if (data.workouts.length > 0) {
+                    workoutDiv.innerHTML = `
+                        <div class="text-sm font-semibold text-gray-700 mb-2">💪 今日训练：</div>
+                        ${data.workouts.map(w => 
+                            `<div class="text-sm text-gray-600">· ${w.name} ${w.duration}min → +${w.calories} 大卡</div>`
+                        ).join('')}
+                    `;
+                } else {
+                    workoutDiv.innerHTML = '';
+                }
+            } catch (error) {
+                console.error('加载统计失败:', error);
+                alert('加载数据失败，请检查网络连接');
+            }
+        }
+
+        // 加载食材库
+        async function loadFoodLibrary() {
+            try {
+                const response = await fetch(`${API_URL}?action=getFoodLibrary`);
+                foodLibrary = await response.json();
+            } catch (error) {
+                console.error('加载食材库失败:', error);
+            }
+        }
+
+        // 记录饮食
+        async function addDiet() {
+            const description = document.getElementById('foodInput').value.trim();
+            if (!description) {
+                alert('请输入食物描述');
+                return;
+            }
+
+            showLoading(true);
+
+            try {
+                // 先检查食材库
+                let nutrition = searchFoodLibrary(description);
+                
+                // 如果食材库没有，调用 Gemini 估算
+                if (!nutrition) {
+                    nutrition = await estimateNutrition(description);
+                }
+
+                // 写入 Google Sheets
+                await fetch(`${API_URL}?action=addDiet`, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        description: description,
+                        calories: nutrition.calories,
+                        protein: nutrition.protein,
+                        carbs: nutrition.carbs,
+                        fat: nutrition.fat,
+                        source: nutrition.source
+                    })
+                });
+
+                document.getElementById('foodInput').value = '';
+                await loadTodaySummary();
+                alert('✅ 记录成功！');
+            } catch (error) {
+                console.error('记录失败:', error);
+                alert('记录失败：' + error.message);
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        // 在食材库中搜索
+        function searchFoodLibrary(description) {
+            for (let food of foodLibrary) {
+                if (description.includes(food.name)) {
+                    return {
+                        calories: food.calories,
+                        protein: food.protein,
+                        carbs: food.carbs,
+                        fat: food.fat,
+                        source: '食材库'
+                    };
+                }
+            }
+            return null;
+        }
+
+        // 使用 Gemini 估算营养
+        async function estimateNutrition(description) {
+            const prompt = `你是一个专业的营养师。请估算以下食物的营养成分，返回 JSON 格式：
+
+食物描述：${description}
+
+返回格式（只返回 JSON，不要其他文字）：
+{
+  "food": "食物名称",
+  "calories": 热量（整数）,
+  "protein": 蛋白质克数（整数）,
+  "carbs": 碳水克数（整数）,
+  "fat": 脂肪克数（整数）
+}
+
+注意：
+- 如果描述模糊（如"一碗面"），按照中等分量估算
+- 如果提到"大碗"、"小碗"、"大份"、"小份"，相应调整
+- 返回的数字必须是合理的整数`;
+
+            const response = await fetch(`${GEMINI_API_URL}?key=${GEMINI_API_KEY}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    contents: [{
+                        parts: [{ text: prompt }]
+                    }]
+                })
+            });
+
+            const data = await response.json();
+            const text = data.candidates[0].content.parts[0].text;
+            
+            // 提取 JSON（Gemini 可能返回带代码块的格式）
+            const jsonMatch = text.match(/\{[\s\S]*\}/);
+            if (!jsonMatch) {
+                throw new Error('AI 返回格式错误');
+            }
+            
+            const nutrition = JSON.parse(jsonMatch[0]);
+            return {
+                calories: nutrition.calories,
+                protein: nutrition.protein,
+                carbs: nutrition.carbs,
+                fat: nutrition.fat,
+                source: 'AI 估算'
+            };
+        }
+
+        // 处理拍照
+        async function handlePhoto(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            showLoading(true);
+
+            try {
+                // 转换为 base64
+                const base64 = await fileToBase64(file);
+                
+                // 调用 Gemini Vision API
+                const nutrition = await extractNutritionFromImage(base64);
+                
+                // 保存到食材库
+                await fetch(`${API_URL}?action=addFoodToLibrary`, {
+                    method: 'POST',
+                    body: JSON.stringify(nutrition)
+                });
+
+                await loadFoodLibrary();
+                alert(`✅ 已添加到食材库：${nutrition.name}`);
+            } catch (error) {
+                console.error('识别失败:', error);
+                alert('识别失败：' + error.message);
+            } finally {
+                showLoading(false);
+                event.target.value = '';
+            }
+        }
+
+        // 文件转 base64
+        function fileToBase64(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => {
+                    const base64 = reader.result.split(',')[1];
+                    resolve(base64);
+                };
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+        }
+
+        // 使用 Gemini Vision 识别营养表
+        async function extractNutritionFromImage(base64Image) {
+            const prompt = `请识别图片中的营养成分表（Nutrition Facts），提取以下信息，返回 JSON 格式：
+
+返回格式（只返回 JSON，不要其他文字）：
+{
+  "name": "食品名称",
+  "servingSize": "每份重量（如 30g）",
+  "calories": 每份热量（整数）,
+  "protein": 每份蛋白质克数（整数）,
+  "carbs": 每份碳水克数（整数）,
+  "fat": 每份脂肪克数（整数）
+}
+
+如果图片中没有营养成分表，返回：
+{"error": "未检测到营养表"}`;
+
+            const response = await fetch(`${GEMINI_API_URL}?key=${GEMINI_API_KEY}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    contents: [{
+                        parts: [
+                            { text: prompt },
+                            {
+                                inline_data: {
+                                    mime_type: "image/jpeg",
+                                    data: base64Image
+                                }
+                            }
+                        ]
+                    }]
+                })
+            });
+
+            const data = await response.json();
+            const text = data.candidates[0].content.parts[0].text;
+            
+            const jsonMatch = text.match(/\{[\s\S]*\}/);
+            if (!jsonMatch) {
+                throw new Error('AI 返回格式错误');
+            }
+            
+            const result = JSON.parse(jsonMatch[0]);
+            
+            if (result.error) {
+                throw new Error(result.error);
+            }
+            
+            return result;
+        }
+
+        // 记录体重
+        async function addWeight() {
+            const weight = parseFloat(document.getElementById('weightInput').value);
+            if (!weight || weight < 30 || weight > 200) {
+                alert('请输入有效的体重（30-200kg）');
+                return;
+            }
+
+            showLoading(true);
+
+            try {
+                await fetch(`${API_URL}?action=addWeight`, {
+                    method: 'POST',
+                    body: JSON.stringify({ weight: weight })
+                });
+
+                document.getElementById('weightInput').value = '';
+                alert('✅ 体重记录成功！');
+            } catch (error) {
+                console.error('记录失败:', error);
+                alert('记录失败：' + error.message);
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        // 手动同步训记
+        async function syncXunji() {
+            showLoading(true);
+
+            try {
+                await fetch(`${API_URL}?action=syncXunji`, {
+                    method: 'POST',
+                    body: JSON.stringify({})
+                });
+
+                await loadTodaySummary();
+                alert('✅ 同步完成！');
+            } catch (error) {
+                console.error('同步失败:', error);
+                alert('同步失败：' + error.message);
+            } finally {
+                showLoading(false);
+            }
+        }
+    </script>
+</body>
+</html>
