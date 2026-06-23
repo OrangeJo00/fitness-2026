@@ -140,11 +140,20 @@
                 // Reset and recalculate
                 todayData = {calories: 0, protein: 0, carbs: 0, fat: 0};
                 
+                const log = document.getElementById('foodLog');
+                log.innerHTML = '';
+                
                 for (const record of records) {
                     todayData.calories += record.calories;
                     todayData.protein += record.protein;
                     todayData.carbs += record.carbs;
                     todayData.fat += record.fat;
+                    
+                    // Add to display
+                    log.innerHTML += `<div class="mt-2 p-2 bg-gray-50 rounded">
+                        ${record.description}<br>
+                        <span class="text-sm text-gray-600">${Math.round(record.calories)}kcal | 蛋白质${Math.round(record.protein)}g | 碳水${Math.round(record.carbs)}g | 脂肪${Math.round(record.fat)}g</span>
+                    </div>`;
                 }
                 
                 updateTodayStats();
