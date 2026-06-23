@@ -95,7 +95,8 @@
             sheetId: '1wcXUs1rLLWh4gXoB8y_5ZxP1CIJN1tzRdrgkiqRjQyk',
             appsScriptUrl: 'https://script.google.com/macros/s/AKfycbwsL5-TvgWSPkNRNQzph4Gp8rT0IAlWovTG2OciwgNaoWUl5C6aCZ4BLgQu3nvkZ0l4lw/exec',
             geminiApiKey: '', // loaded dynamically
-            weeklyPlan: {} // format: {周一: {中午: 'xx', 晚餐: 'xx'}, ...}
+            weeklyPlan: {}, // format: {周一: {中午: 'xx', 晚餐: 'xx'}, ...}
+            foodLibrary: [] // loaded from Google Sheets
         };
 
         let todayData = {calories: 0, protein: 0, carbs: 0, fat: 0};
@@ -110,6 +111,16 @@
             } catch (e) {
                 console.error('Load config failed:', e);
             }
+            
+            // Load food library from Sheets
+            try {
+                const res = await fetch(CONFIG.appsScriptUrl + '?action=getFoodLibrary');
+                const library = await res.json();
+                CONFIG.foodLibrary = library;
+                console.log('Food library loaded:', CONFIG.foodLibrary.length, 'items');
+            } catch (e) {
+                console.error('Failed to load food library:', e);
+            }
         }
 
         async function loadWeeklyPlan() {
@@ -118,6 +129,28 @@
             if (stored) {
                 CONFIG.weeklyPlan = JSON.parse(stored);
                 showTodayPlan();
+            }
+        }
+
+        async function loadTodayFood() {
+            try {
+                const res = await fetch(CONFIG.appsScriptUrl + '?action=getTodayFood&user=Joyce');
+                const records = await res.json();
+                
+                // Reset and recalculate
+                todayData = {calories: 0, protein: 0, carbs: 0, fat: 0};
+                
+                for (const record of records) {
+                    todayData.calories += record.calories;
+                    todayData.protein += record.protein;
+                    todayData.carbs += record.carbs;
+                    todayData.fat += record.fat;
+                }
+                
+                updateTodayStats();
+                console.log('Loaded today food from Sheets:', records.length, 'records');
+            } catch (e) {
+                console.error('Failed to load today food:', e);
             }
         }
 
@@ -205,6 +238,24 @@
         }
 
         async function analyzeFood(description) {
+            // 先查本地食材库（模糊匹配name和aliases）
+            const query = description.toLowerCase().trim();
+            for (const food of CONFIG.foodLibrary) {
+                // 检查主名称
+                if (query.includes(food.name.toLowerCase()) || food.name.toLowerCase().includes(query)) {
+                    console.log('Found in local library:', food.name);
+                    return {calories: food.calories, protein: food.protein, carbs: food.carbs, fat: food.fat};
+                }
+                // 检查别名
+                for (const alias of food.aliases) {
+                    if (query.includes(alias.toLowerCase()) || alias.toLowerCase().includes(query)) {
+                        console.log('Found in local library via alias:', alias, '->', food.name);
+                        return {calories: food.calories, protein: food.protein, carbs: food.carbs, fat: food.fat};
+                    }
+                }
+            }
+            
+            // 未找到，调用Gemini API
             if (!CONFIG.geminiApiKey) {
                 console.error('Gemini API key not loaded');
                 return {calories: 0, protein: 0, carbs: 0, fat: 0};
@@ -441,6 +492,7 @@ ${userInput}
         // Init
         loadConfig();
         loadWeeklyPlan();
+        loadTodayFood();
     </script>
 </body>
 </html>
