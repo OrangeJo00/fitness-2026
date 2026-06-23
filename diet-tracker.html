@@ -2,1122 +2,438 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>Joyce 减脂管理</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI饮食追踪</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-            -webkit-font-smoothing: antialiased;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-        }
-        .card {
-            background: white;
-            border-radius: 16px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
-        }
-        .btn-primary {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            transition: transform 0.2s;
-        }
-        .btn-primary:active {
-            transform: scale(0.95);
-        }
-        #cameraInput {
-            display: none;
-        }
-        .loading {
-            display: none;
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: rgba(0,0,0,0.8);
-            color: white;
-            padding: 20px 40px;
-            border-radius: 12px;
-            z-index: 1000;
-        }
-    </style>
 </head>
-<body class="p-4">
-    <!-- 称重提醒横幅 -->
-    <div id="reminderBanner" class="max-w-md mx-auto mb-4 bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 rounded-lg" style="display: none;">
-        <p class="font-bold">⚖️ 今天是周日！</p>
-        <p class="text-sm">记得空腹称重哦～（在喝水/吃早餐之前）</p>
-    </div>
-    
-    <div class="max-w-md mx-auto space-y-4">
-        <!-- 标签页导航 -->
-        <div class="flex bg-white rounded-lg shadow p-1 gap-1">
-            <button onclick="switchTab('home')" id="tabHome" class="flex-1 py-2 rounded-lg font-semibold bg-purple-500 text-white text-sm">
-                🏠 首页
-            </button>
-            <button onclick="switchTab('shopping')" id="tabShopping" class="flex-1 py-2 rounded-lg font-semibold text-gray-600 hover:bg-gray-100 text-sm">
-                🛒 采购
-            </button>
-            <button onclick="switchTab('recipes')" id="tabRecipes" class="flex-1 py-2 rounded-lg font-semibold text-gray-600 hover:bg-gray-100 text-sm">
-                📖 食谱
-            </button>
+<body class="bg-gray-50">
+    <div class="max-w-4xl mx-auto p-4">
+        <h1 class="text-2xl font-bold mb-4">🍎 AI饮食追踪</h1>
+        
+        <!-- Tabs -->
+        <div class="flex border-b mb-4">
+            <button onclick="switchTab('home')" id="tab-home" class="px-4 py-2 font-semibold border-b-2 border-blue-500 text-blue-500">首页</button>
+            <button onclick="switchTab('shopping')" id="tab-shopping" class="px-4 py-2 text-gray-600">购物</button>
+            <button onclick="switchTab('recipe')" id="tab-recipe" class="px-4 py-2 text-gray-600">食谱库</button>
         </div>
 
-        <!-- 首页标签内容 -->
-        <div id="homeTab">
-        <!-- 今日统计 -->
-        <div class="card p-6">
-            <h2 class="text-2xl font-bold text-gray-800 mb-4">📊 今日统计</h2>
-            <div class="text-center mb-4">
-                <div class="text-4xl font-bold text-purple-600" id="caloriesDisplay">-- / --</div>
-                <div class="text-sm text-gray-500 mt-1" id="caloriesBreakdown">加载中...</div>
-            </div>
-            <div class="grid grid-cols-3 gap-4 text-center">
-                <div>
-                    <div class="text-2xl font-bold text-blue-600" id="proteinDisplay">--</div>
-                    <div class="text-xs text-gray-500">蛋白质(g)</div>
-                </div>
-                <div>
-                    <div class="text-2xl font-bold text-green-600" id="carbsDisplay">--</div>
-                    <div class="text-xs text-gray-500">碳水(g)</div>
-                </div>
-                <div>
-                    <div class="text-2xl font-bold text-yellow-600" id="fatDisplay">--</div>
-                    <div class="text-xs text-gray-500">脂肪(g)</div>
-                </div>
-            </div>
-            <div id="workoutDisplay" class="mt-4 pt-4 border-t border-gray-200"></div>
-        </div>
-
-        <!-- 本周热量追踪 -->
-        <div class="card p-6">
-            <h2 class="text-xl font-bold text-gray-800 mb-4">📅 本周热量追踪</h2>
-            <div id="weeklyTracker" class="space-y-2">
-                <div class="text-sm text-gray-500 text-center">加载中...</div>
-            </div>
-        </div>
-
-        <!-- 记录饮食 -->
-        <div class="card p-6">
-            <h2 class="text-xl font-bold text-gray-800 mb-4">🍽️ 记录饮食</h2>
-            <textarea 
-                id="foodInput" 
-                class="w-full p-3 border border-gray-300 rounded-lg mb-3 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                rows="3"
-                placeholder="吃了什么？&#10;例如：一碗牛肉面 + 一个鸡蛋"></textarea>
-            <div class="flex gap-2">
-                <button onclick="addDiet()" class="flex-1 btn-primary text-white py-3 rounded-lg font-semibold">
-                    记录饮食
-                </button>
-                <button onclick="document.getElementById('cameraInput').click()" class="btn-primary text-white px-6 py-3 rounded-lg font-semibold">
-                    📷
-                </button>
-            </div>
-            <input type="file" id="cameraInput" accept="image/*" capture="environment" onchange="handlePhoto(event)">
-        </div>
-
-        <!-- 记录体重 -->
-        <div class="card p-6">
-            <h2 class="text-xl font-bold text-gray-800 mb-4">⚖️ 记录体重</h2>
-            <div class="flex gap-2">
-                <input 
-                    type="number" 
-                    id="weightInput" 
-                    class="flex-1 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                    placeholder="78.5"
-                    step="0.1">
-                <button onclick="addWeight()" class="btn-primary text-white px-8 py-3 rounded-lg font-semibold">
-                    保存
-                </button>
-            </div>
-        </div>
-
-        <!-- 手动同步训记 -->
-        <div class="card p-6">
-            <button onclick="syncXunji()" class="w-full bg-green-500 text-white py-3 rounded-lg font-semibold">
-                🔄 立即同步训记
-            </button>
-            <div class="text-xs text-gray-500 text-center mt-2">每天 21:00 自动同步</div>
-        </div>
-
-        <!-- 每周反思 -->
-        <div class="card p-6">
-            <h2 class="text-xl font-bold text-gray-800 mb-4">💭 每周反思</h2>
-            <textarea 
-                id="weeklyNotesInput" 
-                class="w-full p-3 border border-gray-300 rounded-lg mb-3 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                rows="4"
-                placeholder="记录本周的感受、挑战、想法...&#10;例如：&#10;- 周三运动后特别累，可能强度太大&#10;- 想在应用里加个体重曲线图&#10;- 晚上容易饿，考虑把碳水移到晚餐"></textarea>
-            <div class="flex gap-2">
-                <button onclick="saveWeeklyNotes()" class="flex-1 bg-purple-500 text-white py-3 rounded-lg font-semibold">
-                    保存本周反思
-                </button>
-                <button onclick="viewHistory()" class="bg-gray-200 text-gray-700 px-6 py-3 rounded-lg font-semibold">
-                    📝 历史
-                </button>
-            </div>
-            <div id="weeklyNotesHistory" class="mt-4 space-y-2" style="display: none;">
-                <div class="text-sm font-semibold text-gray-700">最近的反思：</div>
-            </div>
-        </div>
-        </div><!-- 首页标签结束 -->
-
-        <!-- 采购标签页 -->
-        <div id="shoppingTab" style="display: none;">
-            <!-- 下周想吃什么 -->
-            <div class="card p-6">
-                <h2 class="text-xl font-bold text-gray-800 mb-4">📝 下周想吃什么</h2>
-                <textarea 
-                    id="mealPlanInput" 
-                    class="w-full p-3 border border-gray-300 rounded-lg mb-3 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                    rows="6"
-                    placeholder="列出下周想吃的菜，每行一个：&#10;鸡胸肉炒西兰花&#10;三文鱼配糙米&#10;牛肉面&#10;希腊酸奶 + 蓝莓&#10;...&#10;&#10;或者点击下面让 AI 帮你推荐"></textarea>
-                <div class="flex gap-2">
-                    <button onclick="getAIRecommendations()" class="flex-1 bg-blue-500 text-white py-3 rounded-lg font-semibold">
-                        ✨ AI 推荐菜单
-                    </button>
-                    <button onclick="analyzeMealPlan()" class="flex-1 bg-purple-500 text-white py-3 rounded-lg font-semibold">
-                        🔍 分析营养
-                    </button>
+        <!-- Home Tab -->
+        <div id="content-home">
+            <!-- Today's Meal Suggestion -->
+            <div class="bg-white p-4 rounded-lg shadow mb-4">
+                <h2 class="text-lg font-bold mb-2">📅 今日建议</h2>
+                <div id="todayPlan" class="text-gray-700 mb-3"></div>
+                <div id="aiAdvice" class="bg-blue-50 p-3 rounded hidden">
+                    <p class="text-sm font-semibold text-blue-800">💡 AI实时建议</p>
+                    <p id="aiAdviceText" class="text-sm text-blue-700 mt-1"></p>
                 </div>
             </div>
 
-            <!-- 营养分析结果 -->
-            <div id="nutritionAnalysis" class="card p-6" style="display: none;">
-                <h2 class="text-xl font-bold text-gray-800 mb-4">📊 营养分析</h2>
-                <div id="nutritionResult"></div>
+            <!-- Today Stats -->
+            <div class="bg-white p-4 rounded-lg shadow mb-4">
+                <h2 class="text-lg font-bold mb-2">今日摄入</h2>
+                <div class="space-y-2">
+                    <div><span class="font-semibold">热量:</span> <span id="todayCalories">0</span> / <span id="targetCalories">1500</span> kcal</div>
+                    <div><span class="font-semibold">蛋白质:</span> <span id="todayProtein">0</span> / 131g</div>
+                    <div><span class="font-semibold">碳水:</span> <span id="todayCarbs">0</span> / 150g</div>
+                    <div><span class="font-semibold">脂肪:</span> <span id="todayFat">0</span> / 42g</div>
+                </div>
             </div>
 
-            <!-- 采购清单 -->
-            <div id="shoppingList" class="card p-6" style="display: none;">
-                <h2 class="text-xl font-bold text-gray-800 mb-4">🛒 推荐采购清单</h2>
+            <!-- Food Log -->
+            <div class="bg-white p-4 rounded-lg shadow mb-4">
+                <h2 class="text-lg font-bold mb-2">记录饮食</h2>
+                <textarea id="foodInput" class="w-full border p-2 rounded" rows="3" placeholder="描述你吃了什么..."></textarea>
+                <button onclick="logFood()" class="mt-2 bg-blue-500 text-white px-4 py-2 rounded">记录</button>
+                <div id="foodLog" class="mt-4"></div>
+            </div>
+
+            <!-- Weight Log -->
+            <div class="bg-white p-4 rounded-lg shadow">
+                <h2 class="text-lg font-bold mb-2">记录体重</h2>
+                <input type="number" id="weightInput" class="border p-2 rounded" step="0.1" placeholder="kg">
+                <button onclick="logWeight()" class="ml-2 bg-green-500 text-white px-4 py-2 rounded">记录</button>
+            </div>
+        </div>
+
+        <!-- Shopping Tab -->
+        <div id="content-shopping" class="hidden">
+            <div class="bg-white p-4 rounded-lg shadow">
+                <h2 class="text-lg font-bold mb-4">🛒 智能采购</h2>
+                <p class="text-gray-600 mb-4">三步流程：输入想吃的 → AI补充营养缺口 → 生成采购清单</p>
                 
-                <div class="mb-4">
-                    <div class="flex items-center gap-2 mb-2">
-                        <span class="text-lg font-semibold">🏬 Costco</span>
+                <h3 class="font-semibold mb-2">Step 1: 本周想吃什么？</h3>
+                <textarea id="userMeals" class="w-full border p-2 rounded mb-3" rows="5" placeholder="例如：&#10;周一中午：鸡胸肉沙拉&#10;周一晚餐：三文鱼糙米饭&#10;..."></textarea>
+                
+                <button onclick="analyzeAndPlan()" class="bg-blue-500 text-white px-4 py-2 rounded mb-4">AI分析 + 生成清单</button>
+                
+                <div id="shoppingResult" class="hidden">
+                    <div class="mb-4">
+                        <h3 class="font-semibold mb-2">Step 2: AI营养补充建议</h3>
+                        <div id="aiSuggestions" class="bg-yellow-50 p-3 rounded"></div>
                     </div>
-                    <div id="costcoList" class="text-sm text-gray-700 space-y-1"></div>
-                </div>
-
-                <div class="mb-4">
-                    <div class="flex items-center gap-2 mb-2">
-                        <span class="text-lg font-semibold">🥢 中超</span>
+                    
+                    <div>
+                        <h3 class="font-semibold mb-2">Step 3: 采购清单</h3>
+                        <div id="shoppingList" class="space-y-2"></div>
                     </div>
-                    <div id="asianMarketList" class="text-sm text-gray-700 space-y-1"></div>
-                </div>
-
-                <div class="mb-4">
-                    <div class="flex items-center gap-2 mb-2">
-                        <span class="text-lg font-semibold">🥗 Trader Joe's</span>
-                    </div>
-                    <div id="tjList" class="text-sm text-gray-700 space-y-1"></div>
-                </div>
-
-                <button onclick="saveShoppingList()" class="w-full bg-green-500 text-white py-3 rounded-lg font-semibold mt-4">
-                    💾 保存采购清单
-                </button>
-            </div>
-        </div><!-- 采购标签结束 -->
-
-        <!-- 食谱库标签页 -->
-        <div id="recipesTab" style="display: none;">
-            <!-- 添加食谱 -->
-            <div class="card p-6">
-                <h2 class="text-xl font-bold text-gray-800 mb-4">➕ 添加食谱</h2>
-                <input 
-                    type="text" 
-                    id="recipeName" 
-                    class="w-full p-3 border border-gray-300 rounded-lg mb-3 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                    placeholder="食谱名称（如：香煎鸡胸肉配西兰花）">
-                <textarea 
-                    id="recipeContent" 
-                    class="w-full p-3 border border-gray-300 rounded-lg mb-3 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                    rows="6"
-                    placeholder="做法、食材、分量...&#10;可以直接粘贴网上的食谱"></textarea>
-                <input 
-                    type="text" 
-                    id="recipeTags" 
-                    class="w-full p-3 border border-gray-300 rounded-lg mb-3 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                    placeholder="标签（用空格分隔，如：高蛋白 快手 减脂）">
-                <button onclick="saveRecipe()" class="w-full bg-purple-500 text-white py-3 rounded-lg font-semibold">
-                    💾 保存食谱
-                </button>
-            </div>
-
-            <!-- 食谱列表 -->
-            <div class="card p-6">
-                <div class="flex justify-between items-center mb-4">
-                    <h2 class="text-xl font-bold text-gray-800">📚 我的食谱库</h2>
-                    <button onclick="loadRecipes()" class="text-sm text-purple-600">🔄 刷新</button>
-                </div>
-                <div id="recipesList" class="space-y-3">
-                    <div class="text-sm text-gray-500 text-center">加载中...</div>
                 </div>
             </div>
-        </div><!-- 食谱标签结束 -->
+        </div>
 
+        <!-- Recipe Tab -->
+        <div id="content-recipe" class="hidden">
+            <div class="bg-white p-4 rounded-lg shadow">
+                <h2 class="text-lg font-bold mb-4">📚 食谱库</h2>
+                <p class="text-gray-600">功能开发中...</p>
+            </div>
+        </div>
     </div>
-
-    <!-- Loading 提示 -->
-    <div class="loading" id="loading">处理中...</div>
 
     <script>
-        let API_URL = 'https://script.google.com/macros/s/AKfycbyVH8IDqDkNV0wLx-oiCY6lpDDeNJTKCvIXD_Ibge7LrL2NmA90Wip0nd1eDoeRiKBwbQ/exec';
-        let GEMINI_API_KEY = '';
-        let XUNJI_FOOD_TOKEN = '';
-        const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
-
-        let foodLibrary = [];
-
-        // 启动时动态加载配置
-        async function loadConfig() {
-            try {
-                const response = await fetch(`${API_URL}?action=getConfig`);
-                const config = await response.json();
-                GEMINI_API_KEY = config.geminiApiKey;
-                XUNJI_FOOD_TOKEN = config.xunjiFoodToken;
-            } catch (error) {
-                console.error('加载配置失败:', error);
-                alert('配置加载失败，请检查网络连接');
-            }
-        }
-
-        // 页面加载时获取数据
-        window.onload = async function() {
-            // 离线测试模式 - 跳过 API 加载
-            console.log('离线测试模式');
-            loadMockData();
-            checkWeightReminder();
+        const CONFIG = {
+            sheetId: '1wcXUs1rLLWh4gXoB8y_5ZxP1CIJN1tzRdrgkiqRjQyk',
+            appsScriptUrl: 'https://script.google.com/macros/s/AKfycbyVH8IDqDkNV0wLx-oiCY6lpDDeNJTKCvIXD_Ibge7LrL2NmA90Wip0nd1eDoeRiKBwbQ/exec',
+            geminiApiKey: '', // loaded dynamically
+            weeklyPlan: {} // format: {周一: {中午: 'xx', 晚餐: 'xx'}, ...}
         };
 
-        // 加载模拟数据（离线测试）
-        function loadMockData() {
-            // 模拟今日统计
-            document.getElementById('caloriesDisplay').textContent = '320 / 1500';
-            document.getElementById('caloriesBreakdown').textContent = '（基础 1500 + 运动 0）';
-            document.getElementById('proteinDisplay').textContent = '39 / 131';
-            document.getElementById('carbsDisplay').textContent = '9 / 150';
-            document.getElementById('fatDisplay').textContent = '11 / 42';
+        let todayData = {calories: 0, protein: 0, carbs: 0, fat: 0};
+
+        async function loadConfig() {
+            try {
+                const res = await fetch(CONFIG.appsScriptUrl + '?action=getConfig&user=Joyce');
+                const data = await res.json();
+                CONFIG.geminiApiKey = data.geminiApiKey || data.geminiKey;
+                CONFIG.targetCalories = data.weekendCalories || 1700;
+                document.getElementById('targetCalories').textContent = CONFIG.targetCalories;
+            } catch (e) {
+                console.error('Load config failed:', e);
+            }
+        }
+
+        async function loadWeeklyPlan() {
+            // Load from Google Sheets or localStorage
+            const stored = localStorage.getItem('weeklyPlan');
+            if (stored) {
+                CONFIG.weeklyPlan = JSON.parse(stored);
+                showTodayPlan();
+            }
+        }
+
+        function showTodayPlan() {
+            const days = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+            const today = days[new Date().getDay()];
+            const plan = CONFIG.weeklyPlan[today];
             
-            // 模拟本周追踪
-            const weekDays = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
-            const trackerDiv = document.getElementById('weeklyTracker');
-            let html = '';
-            for (let i = 0; i < 7; i++) {
-                const consumed = [1200, 1500, 1300, 1400, 320, 0, 0][i];
-                const target = i < 5 ? 1500 : 1700;
-                const percentage = Math.round((consumed / target) * 100);
-                const isToday = i === 4;
-                const bgColor = isToday ? 'bg-purple-50' : '';
-                
-                html += `
-                    <div class="flex items-center gap-2 ${bgColor} p-2 rounded">
-                        <div class="text-sm font-medium w-12 ${isToday ? 'text-purple-600' : 'text-gray-600'}">
-                            ${weekDays[i]}
-                        </div>
-                        <div class="flex-1">
-                            <div class="w-full bg-gray-200 rounded-full h-2">
-                                <div class="bg-purple-600 h-2 rounded-full" style="width: ${Math.min(percentage, 100)}%"></div>
-                            </div>
-                        </div>
-                        <div class="text-sm text-gray-600 w-24 text-right">
-                            ${consumed} / ${target}
-                        </div>
-                    </div>
+            if (plan) {
+                document.getElementById('todayPlan').innerHTML = `
+                    <p><strong>${today}</strong></p>
+                    <p>中午：${plan.中午 || '未设置'}</p>
+                    <p>晚餐：${plan.晚餐 || '未设置'}</p>
                 `;
-            }
-            trackerDiv.innerHTML = html;
-        }
-
-        // 标签页切换
-        function switchTab(tab) {
-            // 隐藏所有标签
-            document.getElementById('homeTab').style.display = 'none';
-            document.getElementById('shoppingTab').style.display = 'none';
-            document.getElementById('recipesTab').style.display = 'none';
-            
-            // 重置所有按钮样式
-            document.getElementById('tabHome').className = 'flex-1 py-2 rounded-lg font-semibold text-gray-600 hover:bg-gray-100 text-sm';
-            document.getElementById('tabShopping').className = 'flex-1 py-2 rounded-lg font-semibold text-gray-600 hover:bg-gray-100 text-sm';
-            document.getElementById('tabRecipes').className = 'flex-1 py-2 rounded-lg font-semibold text-gray-600 hover:bg-gray-100 text-sm';
-            
-            // 显示选中的标签
-            if (tab === 'home') {
-                document.getElementById('homeTab').style.display = 'block';
-                document.getElementById('tabHome').className = 'flex-1 py-2 rounded-lg font-semibold bg-purple-500 text-white text-sm';
-            } else if (tab === 'shopping') {
-                document.getElementById('shoppingTab').style.display = 'block';
-                document.getElementById('tabShopping').className = 'flex-1 py-2 rounded-lg font-semibold bg-purple-500 text-white text-sm';
-            } else if (tab === 'recipes') {
-                document.getElementById('recipesTab').style.display = 'block';
-                document.getElementById('tabRecipes').className = 'flex-1 py-2 rounded-lg font-semibold bg-purple-500 text-white text-sm';
-                setTimeout(() => loadRecipes(), 0); // 异步加载，不阻塞切换
+            } else {
+                document.getElementById('todayPlan').innerHTML = `<p class="text-gray-500">本周菜单未设置，去购物tab生成</p>`;
             }
         }
 
-        // AI 推荐菜单
-        async function getAIRecommendations() {
-            showLoading(true);
+        async function logFood() {
+            const input = document.getElementById('foodInput').value.trim();
+            if (!input) return;
+            
+            const btn = event.target;
+            btn.disabled = true;
+            btn.textContent = '分析中...';
 
+            // Call Gemini to analyze
+            const nutrition = await analyzeFood(input);
+            
+            // Update today stats
+            todayData.calories += nutrition.calories;
+            todayData.protein += nutrition.protein;
+            todayData.carbs += nutrition.carbs;
+            todayData.fat += nutrition.fat;
+            
+            updateTodayStats();
+            
+            // Show AI advice
+            showAIAdvice();
+            
+            // Save to Google Sheets
+            await saveToSheets(input, nutrition);
+            
+            // Clear input
+            document.getElementById('foodInput').value = '';
+            
+            // Add to log display
+            const log = document.getElementById('foodLog');
+            log.innerHTML = `<div class="mt-2 p-2 bg-gray-50 rounded">
+                ${input}<br>
+                <span class="text-sm text-gray-600">${nutrition.calories}kcal | 蛋白质${nutrition.protein}g | 碳水${nutrition.carbs}g | 脂肪${nutrition.fat}g</span>
+            </div>` + log.innerHTML;
+            
+            btn.disabled = false;
+            btn.textContent = '记录';
+        }
+
+        async function saveToSheets(description, nutrition) {
             try {
-                const prompt = `你是专业营养师。为减脂期女性设计一周菜单（7 天）。
-
-饮食结构（每天）：
-- 早上：训练后蛋白粉 + 牛奶（320大卡，39g蛋白，9g碳水，11g脂肪）已固定
-- 中午（第一顿正餐）：高蛋白为主（600-700大卡，60g蛋白，40g碳水，20g脂肪）
-- 下午零食：水果 + 坚果（250大卡，5g蛋白，30g碳水，10g脂肪）已固定
-- 晚餐（第二顿正餐）：高碳水为主（400-500大卡，25g蛋白，70g碳水，低脂肪）
-
-请设计：
-1. 中午餐（高蛋白）：鸡胸肉/鱼/虾/牛肉 + 蔬菜 + 少量碳水
-2. 晚餐（高碳水）：红薯/糙米/面 + 瘦肉/豆腐 + 蔬菜，尽量低脂
-
-要求：
-- 食材要在 Costco、中超、Trader Joe's 能买到
-- 考虑华人饮食习惯（但以健康为主）
-- 菜式简单易做（30 分钟内）
-- 7 天不重复
-
-返回格式（每行格式："中午：XXX | 晚餐：XXX"，共 7-10 组让用户选）：
-中午：香煎鸡胸肉配西兰花 + 50g糙米 | 晚餐：红薯 + 清炒虾仁 + 上海青
-中午：烤三文鱼 + 芦笋 + 藜麦 | 晚餐：牛肉番茄意面（瘦牛肉）
-...`;
-
-                const response = await fetch(\`\${GEMINI_API_URL}?key=\${GEMINI_API_KEY}\`, {
+                const now = new Date();
+                const timestamp = now.toISOString();
+                
+                await fetch(CONFIG.appsScriptUrl, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    mode: 'no-cors',
+                    headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({
-                        contents: [{ parts: [{ text: prompt }] }]
-                    })
-                });
-
-                const data = await response.json();
-                
-                if (!data.candidates || !data.candidates[0]) {
-                    throw new Error('AI 返回数据格式错误');
-                }
-                
-                const text = data.candidates[0].content.parts[0].text;
-                
-                // 提取菜单列表
-                const lines = text.split('\\n').filter(line => 
-                    line.trim() && 
-                    !line.includes('返回格式') && 
-                    !line.includes('要求') &&
-                    !line.startsWith('#') &&
-                    !line.startsWith('*')
-                );
-                
-                document.getElementById('mealPlanInput').value = lines.join('\\n');
-                alert('✅ AI 已推荐菜单！可以修改后再点"分析营养"');
-
-            } catch (error) {
-                console.error('推荐失败:', error);
-                alert('推荐失败：' + error.message);
-            } finally {
-                showLoading(false);
-            }
-        }
-
-        // 分析膳食计划
-        async function analyzeMealPlan() {
-            const mealPlan = document.getElementById('mealPlanInput').value.trim();
-            if (!mealPlan) {
-                alert('请先输入想吃的菜，或点击"AI 推荐菜单"');
-                return;
-            }
-
-            showLoading(true);
-
-            try {
-                const prompt = `你是营养师 + 采购顾问。用户下周想吃这些菜：
-
-${mealPlan}
-
-用户每天营养目标：蛋白质 131g，碳水 150g，脂肪 42g。
-
-请：
-1. 估算这些菜的总营养（假设均匀分配到 7 天）
-2. 判断是否达标（蛋白质最重要）
-3. 推荐需要补充的食材
-
-**采购建议规则：**
-- Costco：大包装、肉类、蛋白粉、坚果、冷冻食品。适合囤货（鸡胸肉、牛肉、三文鱼、希腊酸奶、有机鸡蛋）
-- 中超：亚洲食材、豆腐、青菜、面条、调料。便宜且新鲜（豆腐、青菜、蘑菇、姜蒜）
-- Trader Joe's：即食沙拉、有机蔬菜、小包装、特色食品。质量好但贵（冷冻蔬菜、即食鸡胸肉、奇亚籽、蓝莓）
-
-每个食材请注明：
-- 在哪买（Costco/中超/TJ）
-- 为什么在这买（价格/质量/包装大小）
-
-返回 JSON 格式：
-{
-  "dailyAverage": {"protein": 数字, "carbs": 数字, "fat": 数字},
-  "gaps": {"protein": "还需要X克蛋白质", "carbs": "...", "fat": "..."},
-  "recommendations": {
-    "costco": [
-      "鸡胸肉 2lb (高蛋白，大包装划算，$3/lb)",
-      "有机鸡蛋 24个 (性价比最高，蛋白质来源)"
-    ],
-    "asianMarket": [
-      "嫩豆腐 (便宜新鲜，$1.5/盒，补充蛋白)",
-      "上海青 (新鲜便宜，$2/把)"
-    ],
-    "traderJoes": [
-      "冷冻西兰花 (方便，质量好，$2.5/袋)",
-      "即食鸡胸肉 (懒人必备，$4.5)"
-    ]
-  }
-}`;
-
-                const response = await fetch(\`\${GEMINI_API_URL}?key=\${GEMINI_API_KEY}\`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        contents: [{ parts: [{ text: prompt }] }]
-                    })
-                });
-
-                const data = await response.json();
-                
-                if (!data.candidates || !data.candidates[0]) {
-                    throw new Error('AI 返回数据格式错误');
-                }
-                
-                const text = data.candidates[0].content.parts[0].text;
-                const jsonMatch = text.match(/\{[\s\S]*\}/);
-                if (!jsonMatch) {
-                    throw new Error('AI 返回格式错误');
-                }
-                
-                const result = JSON.parse(jsonMatch[0]);
-                displayNutritionAnalysis(result);
-                displayShoppingList(result.recommendations);
-
-            } catch (error) {
-                console.error('分析失败:', error);
-                alert('分析失败：' + error.message);
-            } finally {
-                showLoading(false);
-            }
-        }
-
-        // 显示营养分析
-        function displayNutritionAnalysis(result) {
-            const targets = { protein: 131, carbs: 150, fat: 42 };
-            const avg = result.dailyAverage;
-            
-            let html = '<div class="space-y-2">';
-            
-            ['protein', 'carbs', 'fat'].forEach(nutrient => {
-                const label = { protein: '蛋白质', carbs: '碳水', fat: '脂肪' }[nutrient];
-                const percentage = Math.round((avg[nutrient] / targets[nutrient]) * 100);
-                const isLow = percentage < 90;
-                const color = isLow ? 'text-red-600' : 'text-green-600';
-                
-                html += \`
-                    <div>
-                        <div class="flex justify-between text-sm mb-1">
-                            <span>\${label}</span>
-                            <span class="\${color} font-semibold">\${avg[nutrient]}g / \${targets[nutrient]}g (\${percentage}%)</span>
-                        </div>
-                        <div class="w-full bg-gray-200 rounded-full h-2">
-                            <div class="bg-purple-600 h-2 rounded-full" style="width: \${Math.min(percentage, 100)}%"></div>
-                        </div>
-                    </div>
-                \`;
-            });
-            
-            html += '</div>';
-            
-            if (result.gaps) {
-                html += '<div class="mt-4 p-3 bg-yellow-50 rounded-lg text-sm text-yellow-800">';
-                html += '<div class="font-semibold mb-1">⚠️ 营养缺口：</div>';
-                html += \`<div>\${result.gaps.protein}</div>\`;
-                html += \`<div>\${result.gaps.carbs}</div>\`;
-                html += \`<div>\${result.gaps.fat}</div>\`;
-                html += '</div>';
-            }
-            
-            document.getElementById('nutritionResult').innerHTML = html;
-            document.getElementById('nutritionAnalysis').style.display = 'block';
-        }
-
-        // 显示采购清单
-        function displayShoppingList(recommendations) {
-            document.getElementById('costcoList').innerHTML = 
-                recommendations.costco.map(item => \`<div>• \${item}</div>\`).join('');
-            document.getElementById('asianMarketList').innerHTML = 
-                recommendations.asianMarket.map(item => \`<div>• \${item}</div>\`).join('');
-            document.getElementById('tjList').innerHTML = 
-                recommendations.traderJoes.map(item => \`<div>• \${item}</div>\`).join('');
-            
-            document.getElementById('shoppingList').style.display = 'block';
-        }
-
-        // 保存采购清单
-        async function saveShoppingList() {
-            const mealPlan = document.getElementById('mealPlanInput').value.trim();
-            const costcoItems = document.getElementById('costcoList').innerText;
-            const asianItems = document.getElementById('asianMarketList').innerText;
-            const tjItems = document.getElementById('tjList').innerText;
-            
-            showLoading(true);
-
-            try {
-                await fetch(\`\${API_URL}?action=saveShoppingList\`, {
-                    method: 'POST',
-                    body: JSON.stringify({
-                        mealPlan: mealPlan,
-                        costco: costcoItems,
-                        asianMarket: asianItems,
-                        traderJoes: tjItems
-                    })
-                });
-
-                alert('✅ 采购清单已保存！');
-            } catch (error) {
-                console.error('保存失败:', error);
-                alert('保存失败：' + error.message);
-            } finally {
-                showLoading(false);
-            }
-        }
-
-        // 检查是否需要显示称重提醒
-        function checkWeightReminder() {
-            const today = new Date();
-            const dayOfWeek = today.getDay();
-            
-            // 只在周日显示
-            if (dayOfWeek === 0) {
-                document.getElementById('reminderBanner').style.display = 'block';
-            }
-        }
-
-        // 加载本周热量追踪
-        async function loadWeeklyTracker() {
-            try {
-                const response = await fetch(`${API_URL}?action=getWeeklySummary`);
-                const data = await response.json();
-                
-                const weekDays = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
-                const trackerDiv = document.getElementById('weeklyTracker');
-                
-                let html = '';
-                data.days.forEach((day, index) => {
-                    const percentage = Math.round((day.consumed / day.target) * 100);
-                    const isToday = day.isToday;
-                    const bgColor = isToday ? 'bg-purple-50' : '';
-                    
-                    html += `
-                        <div class="flex items-center gap-2 ${bgColor} p-2 rounded">
-                            <div class="text-sm font-medium w-12 ${isToday ? 'text-purple-600' : 'text-gray-600'}">
-                                ${weekDays[index]}
-                            </div>
-                            <div class="flex-1">
-                                <div class="w-full bg-gray-200 rounded-full h-2">
-                                    <div class="bg-purple-600 h-2 rounded-full" style="width: ${Math.min(percentage, 100)}%"></div>
-                                </div>
-                            </div>
-                            <div class="text-sm text-gray-600 w-24 text-right">
-                                ${day.consumed} / ${day.target}
-                            </div>
-                        </div>
-                    `;
-                });
-                
-                trackerDiv.innerHTML = html;
-            } catch (error) {
-                console.error('加载本周追踪失败:', error);
-                document.getElementById('weeklyTracker').innerHTML = 
-                    '<div class="text-sm text-gray-500 text-center">加载失败</div>';
-            }
-        }
-
-        // 显示加载提示
-        function showLoading(show = true) {
-            document.getElementById('loading').style.display = show ? 'block' : 'none';
-        }
-
-        // 加载今日统计
-        async function loadTodaySummary() {
-            try {
-                const response = await fetch(`${API_URL}?action=getTodaySummary`);
-                const data = await response.json();
-                
-                document.getElementById('caloriesDisplay').textContent = 
-                    `${data.consumed.calories} / ${data.totalAllowed}`;
-                document.getElementById('caloriesBreakdown').textContent = 
-                    `（基础 ${data.baseCalories} + 运动 ${data.workoutCalories}）`;
-                
-                // 营养素目标（基于 1500 大卡减脂期）
-                const targets = {
-                    protein: 131,  // 35%
-                    carbs: 150,    // 40%
-                    fat: 42        // 25%
-                };
-                
-                document.getElementById('proteinDisplay').textContent = 
-                    `${data.consumed.protein} / ${targets.protein}`;
-                document.getElementById('carbsDisplay').textContent = 
-                    `${data.consumed.carbs} / ${targets.carbs}`;
-                document.getElementById('fatDisplay').textContent = 
-                    `${data.consumed.fat} / ${targets.fat}`;
-                
-                // 显示运动记录
-                const workoutDiv = document.getElementById('workoutDisplay');
-                if (data.workouts.length > 0) {
-                    workoutDiv.innerHTML = `
-                        <div class="text-sm font-semibold text-gray-700 mb-2">💪 今日训练：</div>
-                        ${data.workouts.map(w => 
-                            `<div class="text-sm text-gray-600">· ${w.name} ${w.duration}min → +${w.calories} 大卡</div>`
-                        ).join('')}
-                    `;
-                } else {
-                    workoutDiv.innerHTML = '';
-                }
-            } catch (error) {
-                console.error('加载统计失败:', error);
-                alert('加载数据失败，请检查网络连接');
-            }
-        }
-
-        // 加载食材库
-        async function loadFoodLibrary() {
-            try {
-                const response = await fetch(`${API_URL}?action=getFoodLibrary`);
-                foodLibrary = await response.json();
-            } catch (error) {
-                console.error('加载食材库失败:', error);
-            }
-        }
-
-        // 记录饮食
-        async function addDiet() {
-            const description = document.getElementById('foodInput').value.trim();
-            if (!description) {
-                alert('请输入食物描述');
-                return;
-            }
-
-            showLoading(true);
-
-            try {
-                // 先检查食材库
-                let nutrition = searchFoodLibrary(description);
-                
-                // 如果食材库没有，调用 Gemini 估算
-                if (!nutrition) {
-                    nutrition = await estimateNutrition(description);
-                }
-
-                // 写入 Google Sheets
-                await fetch(`${API_URL}?action=addDiet`, {
-                    method: 'POST',
-                    body: JSON.stringify({
+                        action: 'addFood',
+                        user: 'Joyce',
+                        timestamp: timestamp,
                         description: description,
                         calories: nutrition.calories,
                         protein: nutrition.protein,
                         carbs: nutrition.carbs,
                         fat: nutrition.fat,
-                        source: nutrition.source
+                        source: 'web'
                     })
                 });
-
-                document.getElementById('foodInput').value = '';
-                await loadTodaySummary();
-                alert('✅ 记录成功！');
-            } catch (error) {
-                console.error('记录失败:', error);
-                alert('记录失败：' + error.message);
-            } finally {
-                showLoading(false);
+                
+                console.log('Saved to Sheets:', description);
+            } catch (e) {
+                console.error('Save to Sheets failed:', e);
             }
         }
 
-        // 在食材库中搜索
-        function searchFoodLibrary(description) {
-            for (let food of foodLibrary) {
-                if (description.includes(food.name)) {
-                    return {
-                        calories: food.calories,
-                        protein: food.protein,
-                        carbs: food.carbs,
-                        fat: food.fat,
-                        source: '食材库'
-                    };
+        async function analyzeFood(description) {
+            if (!CONFIG.geminiApiKey) {
+                console.error('Gemini API key not loaded');
+                return {calories: 0, protein: 0, carbs: 0, fat: 0};
+            }
+            
+            try {
+                const prompt = `你是营养分析AI。请分析以下食物的营养成分。
+
+注意：TJ = Trader Joe's
+如果是Trader Joe's (TJ) 的产品，请参考官网数据：https://www.traderjoes.com/home
+其他食物使用USDA或常见营养数据。
+
+只返回JSON格式，不要其他文字：{"calories": 数字, "protein": 数字, "carbs": 数字, "fat": 数字}
+
+食物描述：${description}`;
+                
+                const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${CONFIG.geminiApiKey}`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        contents: [{parts: [{text: prompt}]}]
+                    })
+                });
+                
+                const data = await res.json();
+                console.log('Gemini response:', data);
+                
+                if (!data.candidates || !data.candidates[0]) {
+                    console.error('No candidates in response');
+                    return {calories: 0, protein: 0, carbs: 0, fat: 0};
                 }
+                
+                const text = data.candidates[0].content.parts[0].text;
+                // Remove markdown code blocks if present
+                const cleanText = text.replace(/```json\n?/g, '').replace(/```\n?/g, '');
+                const jsonMatch = cleanText.match(/\{[^}]*"calories"[^}]*\}/);
+                if (!jsonMatch) {
+                    console.error('No JSON found in response:', text);
+                    return {calories: 0, protein: 0, carbs: 0, fat: 0};
+                }
+                
+                return JSON.parse(jsonMatch[0]);
+            } catch (e) {
+                console.error('Gemini API error:', e);
+                return {calories: 0, protein: 0, carbs: 0, fat: 0};
             }
-            return null;
         }
 
-        // 使用 Gemini 估算营养
-        async function estimateNutrition(description) {
-            if (!GEMINI_API_KEY) {
-                throw new Error('API Key 未加载，请刷新页面重试');
+        function updateTodayStats() {
+            document.getElementById('todayCalories').textContent = todayData.calories;
+            document.getElementById('todayProtein').textContent = todayData.protein;
+            document.getElementById('todayCarbs').textContent = todayData.carbs;
+            document.getElementById('todayFat').textContent = todayData.fat;
+        }
+
+        async function showAIAdvice() {
+            const remaining = {
+                protein: 131 - todayData.protein,
+                carbs: 150 - todayData.carbs,
+                fat: 42 - todayData.fat,
+                calories: CONFIG.targetCalories - todayData.calories
+            };
+            
+            let advice = [];
+            if (remaining.protein > 30) advice.push(`还需蛋白质${remaining.protein}g`);
+            if (remaining.carbs > 50) advice.push(`还需碳水${remaining.carbs}g`);
+            if (todayData.fat > 42) advice.push(`脂肪已超标${todayData.fat - 42}g，建议减少`);
+            
+            if (advice.length > 0) {
+                document.getElementById('aiAdviceText').textContent = advice.join('；');
+                document.getElementById('aiAdvice').classList.remove('hidden');
             }
+        }
 
-            const prompt = `你是一个专业的营养师。请估算以下食物的营养成分，返回 JSON 格式：
+        function logWeight() {
+            const weight = document.getElementById('weightInput').value;
+            if (!weight) return;
+            alert('体重已记录: ' + weight + 'kg');
+            document.getElementById('weightInput').value = '';
+        }
 
-食物描述：${description}
+        async function analyzeAndPlan() {
+            const userInput = document.getElementById('userMeals').value.trim();
+            if (!userInput) {
+                alert('请先输入本周想吃的菜');
+                return;
+            }
+            
+            if (!CONFIG.geminiApiKey) {
+                alert('Gemini API未配置');
+                return;
+            }
+            
+            const btn = event.target;
+            btn.disabled = true;
+            btn.textContent = 'AI分析中...';
+            
+            document.getElementById('shoppingResult').classList.remove('hidden');
+            document.getElementById('aiSuggestions').innerHTML = '<p class="text-sm">AI分析中...</p>';
+            document.getElementById('shoppingList').innerHTML = '<p class="text-sm">生成中...</p>';
+            
+            try {
+                const prompt = `你是营养师AI助手。用户计划本周吃以下食物：
+${userInput}
 
-返回格式（只返回 JSON，不要其他文字）：
+用户饮食习惯：
+- 周一到周五早餐固定：30g蛋白粉+300ml全脂牛奶+1 shot咖啡+5g肌酸（~39g蛋白质，15g碳水，12g脂肪，320kcal）
+- 偏向一天两餐：中午高蛋白，晚上高碳水
+- 每日营养目标：蛋白质131g，碳水150g，脂肪42g
+- 热量周期：周一到周五每天500kcal缺口（目标1500kcal），周六周日各250kcal盈余（目标1750kcal）
+- 蔬菜偏好：不吃青椒，喜欢生吃生菜、胡萝卜，或袋装混合沙拉
+
+可用蛋白质：鸡胸肉, 三文鱼, 虾, 鸡蛋, Ribeye牛排, NY Strip牛排, Bellwether Farms A2有机酸奶, Costco烤鸡（少用）
+可用碳水：糙米, 快熟燕麦, 地瓜, 白米饭
+可用蔬菜：生菜, 胡萝卜, 袋装混合沙拉, 西兰花, 菠菜, 芦笋（避免青椒）
+
+采购渠道偏好：
+- Costco: 鸡胸肉, 三文鱼, 虾, 鸡蛋, 牛排, Costco烤鸡, Costco A2 whole milk, 酸奶, 胡萝卜, 洋葱, 土豆, 糙米, 白米
+- TJ: 地瓜, 袋装沙拉
+- 中超: 绿叶蔬菜（白菜/油麦菜）, 茄子
+
+重量标注规则：
+- 糙米、白米：用熟重标注（例如：400g白米饭熟重）
+- 燕麦：用生重标注，配料分开计算（例如：50g燕麦生重 + 300ml牛奶）
+- 肉类、地瓜：用生重标注
+
+要求：
+1. 标注食物重量时注明生重/熟重（例如：180g鸡胸肉生重，150g地瓜生重）
+2. 分析营养缺口（早餐已有39g蛋白质、15g碳水、12g脂肪、320kcal，周一到周五还需1180kcal，周六周日还需1430kcal）
+3. 推荐周一至周日具体膳食计划，遵循中午高蛋白/晚上高碳水原则，确保周一到周五每天~1500kcal，周六周日每天~1750kcal
+4. 采购清单按Costco、TJ、中超分类
+
+返回格式示例（JSON）：
 {
-  "food": "食物名称",
-  "calories": 热量（整数）,
-  "protein": 蛋白质克数（整数）,
-  "carbs": 碳水克数（整数）,
-  "fat": 脂肪克数（整数）
+  "suggestions": "<h3>营养分析与膳食建议</h3><h4>1. 营养缺口分析</h4><p>早餐：39g蛋白质、15g碳水、12g脂肪、320kcal<br>周一到周五剩余需求：蛋白质92g、碳水135g、脂肪30g、1180kcal<br>周六周日剩余需求：蛋白质92g、碳水175g、脂肪40g、1430kcal</p><h4>2. 本周膳食推荐</h4><p><span style='background:#fef3c7;padding:2px 8px;font-weight:bold'>周一</span><br>早餐：固定不变（320kcal）<br>午餐（高蛋白）：180g烤鸡胸肉（生重），1杯西兰花，80g糙米饭（熟重）<br>晚餐（高碳水）：150g鳕鱼（生重），400g白米饭（熟重），蒜蓉炒菠菜<br>估算：蛋白质~123g，碳水~143g，脂肪~37g，总热量~1480kcal</p><p><span style='background:#fef3c7;padding:2px 8px;font-weight:bold'>周二</span><br>早餐：固定不变（320kcal）<br>午餐（高蛋白）：...<br>晚餐（高碳水）：...<br>估算：...</p>...<p><span style='background:#fef3c7;padding:2px 8px;font-weight:bold'>周日</span><br>...(继续)</p>",
+  "shoppingList": "<h4>3. 采购清单</h4><p><strong>Costco:</strong><br>鸡胸肉2lb（生重），三文鱼1lb（生重），虾1lb，鸡蛋1打，ribeye牛排1.5lb（生重），烤鸡1只，A2牛奶1加仑，酸奶2盒，胡萝卜1袋，西兰花1包</p><p><strong>TJ:</strong><br>地瓜2lb（生重），袋装沙拉3袋</p><p><strong>中超:</strong><br>绿叶蔬菜3把，白米1kg，糙米1kg</p>"
 }
 
 注意：
-- 如果描述模糊（如"一碗面"），按照中等分量估算
-- 如果提到"大碗"、"小碗"、"大份"、"小份"，相应调整
-- 返回的数字必须是合理的整数`;
+1. 每个周X标题用 <span style='background:#fef3c7;padding:2px 8px;font-weight:bold'>周X</span> 格式（黄色背景高亮）
+2. suggestions和shoppingList必须分开，不要把采购清单放在suggestions里`;
 
-            const response = await fetch(`${GEMINI_API_URL}?key=${GEMINI_API_KEY}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    contents: [{
-                        parts: [{ text: prompt }]
-                    }]
-                })
-            });
-
-            const data = await response.json();
-            
-            // 检查 API 错误
-            if (data.error) {
-                console.error('Gemini API 错误:', data.error);
-                throw new Error('AI 服务错误：' + (data.error.message || '未知错误'));
-            }
-            
-            if (!data.candidates || !data.candidates[0]) {
-                console.error('Gemini API 返回:', data);
-                throw new Error('AI 返回数据格式错误');
-            }
-            
-            const text = data.candidates[0].content.parts[0].text;
-            
-            // 提取 JSON（Gemini 可能返回带代码块的格式）
-            const jsonMatch = text.match(/\{[\s\S]*\}/);
-            if (!jsonMatch) {
-                throw new Error('AI 返回格式错误');
-            }
-            
-            const nutrition = JSON.parse(jsonMatch[0]);
-            return {
-                calories: nutrition.calories,
-                protein: nutrition.protein,
-                carbs: nutrition.carbs,
-                fat: nutrition.fat,
-                source: 'AI 估算'
-            };
-        }
-
-        // 处理拍照
-        async function handlePhoto(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-
-            showLoading(true);
-
-            try {
-                // 转换为 base64
-                const base64 = await fileToBase64(file);
-                
-                // 调用 Gemini Vision API
-                const nutrition = await extractNutritionFromImage(base64);
-                
-                // 保存到食材库
-                await fetch(`${API_URL}?action=addFoodToLibrary`, {
+                const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${CONFIG.geminiApiKey}`, {
                     method: 'POST',
-                    body: JSON.stringify(nutrition)
-                });
-
-                await loadFoodLibrary();
-                alert(`✅ 已添加到食材库：${nutrition.name}`);
-            } catch (error) {
-                console.error('识别失败:', error);
-                alert('识别失败：' + error.message);
-            } finally {
-                showLoading(false);
-                event.target.value = '';
-            }
-        }
-
-        // 文件转 base64
-        function fileToBase64(file) {
-            return new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                reader.onload = () => {
-                    const base64 = reader.result.split(',')[1];
-                    resolve(base64);
-                };
-                reader.onerror = reject;
-                reader.readAsDataURL(file);
-            });
-        }
-
-        // 使用 Gemini Vision 识别营养表
-        async function extractNutritionFromImage(base64Image) {
-            const prompt = `请识别图片中的营养成分表（Nutrition Facts），提取以下信息，返回 JSON 格式：
-
-返回格式（只返回 JSON，不要其他文字）：
-{
-  "name": "食品名称",
-  "servingSize": "每份重量（如 30g）",
-  "calories": 每份热量（整数）,
-  "protein": 每份蛋白质克数（整数）,
-  "carbs": 每份碳水克数（整数）,
-  "fat": 每份脂肪克数（整数）
-}
-
-如果图片中没有营养成分表，返回：
-{"error": "未检测到营养表"}`;
-
-            const response = await fetch(`${GEMINI_API_URL}?key=${GEMINI_API_KEY}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    contents: [{
-                        parts: [
-                            { text: prompt },
-                            {
-                                inline_data: {
-                                    mime_type: "image/jpeg",
-                                    data: base64Image
-                                }
-                            }
-                        ]
-                    }]
-                })
-            });
-
-            const data = await response.json();
-            const text = data.candidates[0].content.parts[0].text;
-            
-            const jsonMatch = text.match(/\{[\s\S]*\}/);
-            if (!jsonMatch) {
-                throw new Error('AI 返回格式错误');
-            }
-            
-            const result = JSON.parse(jsonMatch[0]);
-            
-            if (result.error) {
-                throw new Error(result.error);
-            }
-            
-            return result;
-        }
-
-        // 记录体重
-        async function addWeight() {
-            const weight = parseFloat(document.getElementById('weightInput').value);
-            if (!weight || weight < 30 || weight > 200) {
-                alert('请输入有效的体重（30-200kg）');
-                return;
-            }
-
-            showLoading(true);
-
-            try {
-                await fetch(`${API_URL}?action=addWeight`, {
-                    method: 'POST',
-                    body: JSON.stringify({ weight: weight })
-                });
-
-                document.getElementById('weightInput').value = '';
-                alert('✅ 体重记录成功！');
-            } catch (error) {
-                console.error('记录失败:', error);
-                alert('记录失败：' + error.message);
-            } finally {
-                showLoading(false);
-            }
-        }
-
-        // 手动同步训记
-        async function syncXunji() {
-            showLoading(true);
-
-            try {
-                await fetch(`${API_URL}?action=syncXunji`, {
-                    method: 'POST',
-                    body: JSON.stringify({})
-                });
-
-                await loadTodaySummary();
-                alert('✅ 同步完成！');
-            } catch (error) {
-                console.error('同步失败:', error);
-                alert('同步失败：' + error.message);
-            } finally {
-                showLoading(false);
-            }
-        }
-
-        // 保存每周反思
-        async function saveWeeklyNotes() {
-            const notes = document.getElementById('weeklyNotesInput').value.trim();
-            if (!notes) {
-                alert('请输入反思内容');
-                return;
-            }
-
-            showLoading(true);
-
-            try {
-                await fetch(`${API_URL}?action=saveWeeklyNotes`, {
-                    method: 'POST',
-                    body: JSON.stringify({ notes: notes })
-                });
-
-                document.getElementById('weeklyNotesInput').value = '';
-                alert('✅ 反思已保存！');
-            } catch (error) {
-                console.error('保存失败:', error);
-                alert('保存失败：' + error.message);
-            } finally {
-                showLoading(false);
-            }
-        }
-
-        // 查看历史反思
-        async function viewHistory() {
-            const historyDiv = document.getElementById('weeklyNotesHistory');
-            
-            if (historyDiv.style.display === 'none') {
-                showLoading(true);
-                
-                try {
-                    const response = await fetch(`${API_URL}?action=getWeeklyNotes`);
-                    const data = await response.json();
-                    
-                    let html = '<div class="text-sm font-semibold text-gray-700 mb-2">最近的反思：</div>';
-                    
-                    if (data.notes.length === 0) {
-                        html += '<div class="text-sm text-gray-500">还没有反思记录</div>';
-                    } else {
-                        data.notes.forEach(note => {
-                            html += `
-                                <div class="bg-gray-50 p-3 rounded border-l-2 border-purple-400">
-                                    <div class="text-xs text-gray-500 mb-1">${note.date}</div>
-                                    <div class="text-sm text-gray-700 whitespace-pre-wrap">${note.content}</div>
-                                </div>
-                            `;
-                        });
-                    }
-                    
-                    historyDiv.innerHTML = html;
-                    historyDiv.style.display = 'block';
-                } catch (error) {
-                    console.error('加载历史失败:', error);
-                    alert('加载历史失败：' + error.message);
-                } finally {
-                    showLoading(false);
-                }
-            } else {
-                historyDiv.style.display = 'none';
-            }
-        }
-
-        // 保存食谱
-        async function saveRecipe() {
-            const name = document.getElementById('recipeName').value.trim();
-            const content = document.getElementById('recipeContent').value.trim();
-            const tags = document.getElementById('recipeTags').value.trim();
-            
-            if (!name || !content) {
-                alert('请输入食谱名称和内容');
-                return;
-            }
-
-            showLoading(true);
-
-            try {
-                await fetch(`${API_URL}?action=saveRecipe`, {
-                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({
-                        name: name,
-                        content: content,
-                        tags: tags
+                        contents: [{parts: [{text: prompt}]}]
                     })
                 });
-
-                document.getElementById('recipeName').value = '';
-                document.getElementById('recipeContent').value = '';
-                document.getElementById('recipeTags').value = '';
                 
-                alert('✅ 食谱已保存！');
-                loadRecipes();
-
-            } catch (error) {
-                console.error('保存失败:', error);
-                alert('保存失败：' + error.message);
-            } finally {
-                showLoading(false);
-            }
-        }
-
-        // 加载食谱列表
-        async function loadRecipes() {
-            const listDiv = document.getElementById('recipesList');
-            
-            try {
-                const response = await fetch(`${API_URL}?action=getRecipes`);
-                const data = await response.json();
+                const data = await res.json();
+                console.log('Gemini response:', data);
                 
-                if (data.recipes && data.recipes.length === 0) {
-                    listDiv.innerHTML = '<div class="text-sm text-gray-500 text-center">还没有保存食谱</div>';
+                // Check for API errors
+                if (data.error) {
+                    throw new Error(`Gemini API错误: ${data.error.message || JSON.stringify(data.error)}`);
+                }
+                
+                if (!data.candidates || !data.candidates[0]) {
+                    console.error('Complete response:', JSON.stringify(data, null, 2));
+                    throw new Error('API返回格式错误 - 可能是内容被过滤或rate limit');
+                }
+                
+                const text = data.candidates[0].content.parts[0].text;
+                console.log('Response text:', text);
+                
+                // Remove markdown code blocks if present
+                const cleanText = text.replace(/```json\n?/g, '').replace(/```\n?/g, '');
+                const jsonMatch = cleanText.match(/\{[\s\S]*"suggestions"[\s\S]*\}/);
+                if (!jsonMatch) {
+                    // Fallback: display raw response
+                    document.getElementById('aiSuggestions').innerHTML = `<p class="text-sm">${text.replace(/\n/g, '<br>')}</p>`;
+                    document.getElementById('shoppingList').innerHTML = '<p class="text-sm text-gray-500">采购清单已包含在上方建议中</p>';
                     return;
                 }
                 
-                if (!data.recipes) {
-                    throw new Error('接口返回格式错误');
+                const result = JSON.parse(jsonMatch[0]);
+                
+                // Ensure shoppingList is a string
+                const shoppingListHtml = typeof result.shoppingList === 'string' 
+                    ? result.shoppingList 
+                    : '<p class="text-sm text-gray-500">采购清单已包含在建议中</p>';
+                
+                document.getElementById('aiSuggestions').innerHTML = result.suggestions;
+                document.getElementById('shoppingList').innerHTML = shoppingListHtml;
+                
+                // Save weekly plan to localStorage
+                const planMatch = text.match(/周[一二三四五六日][^\n]*：[^\n]+/g);
+                if (planMatch) {
+                    const plan = {};
+                    planMatch.forEach(line => {
+                        const [day, meal] = line.split(/[：:]/);
+                        const dayName = day.match(/周[一二三四五六日]/)[0];
+                        if (!plan[dayName]) plan[dayName] = {};
+                        if (line.includes('中午')) plan[dayName].中午 = meal.trim();
+                        if (line.includes('晚餐')) plan[dayName].晚餐 = meal.trim();
+                    });
+                    CONFIG.weeklyPlan = plan;
+                    localStorage.setItem('weeklyPlan', JSON.stringify(plan));
+                    showTodayPlan();
                 }
-                
-                let html = '';
-                data.recipes.forEach((recipe) => {
-                    const tags = recipe.tags ? recipe.tags.split(' ').map(tag => 
-                        `<span class="inline-block bg-purple-100 text-purple-600 text-xs px-2 py-1 rounded">${tag}</span>`
-                    ).join(' ') : '';
-                    
-                    const contentPreview = recipe.content ? recipe.content.substring(0, 100) : '';
-                    
-                    html += `
-                        <div class="border border-gray-200 rounded-lg p-3">
-                            <div class="flex justify-between items-start mb-2">
-                                <div class="font-semibold text-gray-800">${recipe.name}</div>
-                                <button onclick="addToMealPlan('${recipe.name}')" class="text-sm text-purple-600">
-                                    ➕ 加入菜单
-                                </button>
-                            </div>
-                            <div class="text-sm text-gray-600 whitespace-pre-wrap mb-2">${contentPreview}...</div>
-                            ${tags}
-                        </div>
-                    `;
-                });
-                
-                listDiv.innerHTML = html;
-
-            } catch (error) {
-                console.error('加载食谱失败:', error);
-                listDiv.innerHTML = '<div class="text-sm text-gray-500 text-center">后端未部署，测试模式下暂时无法加载食谱</div>';
+            } catch (e) {
+                console.error('Gemini API error:', e);
+                document.getElementById('aiSuggestions').innerHTML = `<p class="text-sm text-red-600">AI分析失败：${e.message}</p>`;
+                document.getElementById('shoppingList').innerHTML = '';
+            } finally {
+                const btn = document.querySelector('button[onclick="analyzeAndPlan()"]');
+                if (btn) {
+                    btn.disabled = false;
+                    btn.textContent = 'AI分析 + 生成清单';
+                }
             }
         }
 
-        // 加入到菜单
-        function addToMealPlan(recipeName) {
-            switchTab('shopping');
-            const input = document.getElementById('mealPlanInput');
-            const current = input.value.trim();
-            input.value = current ? `${current}\n${recipeName}` : recipeName;
-            alert(`✅ "${recipeName}" 已加入菜单！`);
+        function switchTab(tab) {
+            ['home', 'shopping', 'recipe'].forEach(t => {
+                document.getElementById('content-' + t).classList.add('hidden');
+                document.getElementById('tab-' + t).classList.remove('border-blue-500', 'text-blue-500');
+                document.getElementById('tab-' + t).classList.add('text-gray-600');
+            });
+            
+            document.getElementById('content-' + tab).classList.remove('hidden');
+            document.getElementById('tab-' + tab).classList.add('border-blue-500', 'text-blue-500');
+            document.getElementById('tab-' + tab).classList.remove('text-gray-600');
         }
+
+        // Init
+        loadConfig();
+        loadWeeklyPlan();
     </script>
 </body>
 </html>
