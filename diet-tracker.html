@@ -213,6 +213,13 @@
             try {
                 const prompt = `你是营养分析AI。请分析以下食物的营养成分。
 
+用户常吃食物参考（请使用准确数据）：
+- 早餐蛋白粉shake：30g蛋白粉 + 300ml Costco A2 whole milk + 1 shot咖啡 + 5g肌酸 = 320kcal / 39g蛋白质 / 15g碳水 / 12g脂肪
+- Costco A2 whole milk（全脂）：1杯(240ml) = 150kcal / 8g蛋白质 / 12g碳水 / 8g脂肪
+- 大号鸡蛋1个：70kcal / 6g蛋白质 / 0.4g碳水 / 5g脂肪
+- Costco鸡胸肉（生重）：100g = 110kcal / 23g蛋白质 / 0g碳水 / 1.2g脂肪
+- 三文鱼（生重）：100g = 180kcal / 20g蛋白质 / 0g碳水 / 11g脂肪
+
 注意：TJ = Trader Joe's
 如果是Trader Joe's (TJ) 的产品，请参考官网数据：https://www.traderjoes.com/home
 其他食物使用USDA或常见营养数据。
@@ -254,10 +261,10 @@
         }
 
         function updateTodayStats() {
-            document.getElementById('todayCalories').textContent = todayData.calories;
-            document.getElementById('todayProtein').textContent = todayData.protein;
-            document.getElementById('todayCarbs').textContent = todayData.carbs;
-            document.getElementById('todayFat').textContent = todayData.fat;
+            document.getElementById('todayCalories').textContent = Math.round(todayData.calories);
+            document.getElementById('todayProtein').textContent = Math.round(todayData.protein);
+            document.getElementById('todayCarbs').textContent = Math.round(todayData.carbs);
+            document.getElementById('todayFat').textContent = Math.round(todayData.fat);
         }
 
         async function showAIAdvice() {
@@ -311,7 +318,7 @@
 ${userInput}
 
 用户饮食习惯：
-- 周一到周五早餐固定：30g蛋白粉+300ml全脂牛奶+1 shot咖啡+5g肌酸（~39g蛋白质，15g碳水，12g脂肪，320kcal）
+- 周一到周五早餐固定：30g蛋白粉 + 300ml Costco A2 whole milk + 1 shot咖啡 + 5g肌酸（~39g蛋白质，15g碳水，12g脂肪，320kcal）
 - 偏向一天两餐：中午高蛋白，晚上高碳水
 - 每日营养目标：蛋白质131g，碳水150g，脂肪42g
 - 热量周期：周一到周五每天500kcal缺口（目标1500kcal），周六周日各250kcal盈余（目标1750kcal）
